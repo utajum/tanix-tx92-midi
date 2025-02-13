@@ -23,6 +23,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y $PACKAGES
 # Download default soundfont
 mkdir -p /usr/share/sounds/sf2
 wget -O /usr/share/sounds/sf2/VintageDreamsWaves-v2.sf2 https://github.com/FluidSynth/fluidsynth/raw/refs/heads/master/sf2/VintageDreamsWaves-v2.sf2
+chown -R $USER:$USER /usr/share/sounds/sf2
 
 # Ensure user's home directory exists
 USER_HOME=$(getent passwd "$USER" | cut -d: -f6)
@@ -39,8 +40,8 @@ cat <<EOF | tee /etc/fluidsynth/fluidsynth.conf
 set audio.driver jack
 set audio.jack.autoconnect True
 set audio.jack.multi True
-set audio.periods 16
-set audio.period-size 64
+#set audio.periods 16
+#set audio.period-size 64
 set audio.realtime-prio 90
 
 # MIDI driver
@@ -51,14 +52,14 @@ set midi.realtime-prio 90
 set synth.cpu-cores 3
 set synth.midi-channels 16
 set synth.polyphony 256
-set synth.sample-rate 44100
-set synth.gain 1.0
+set synth.sample-rate 48000
+set synth.gain 0.8
 
 # Default soundfont
 set synth.default-soundfont /usr/share/sounds/sf2/VintageDreamsWaves-v2.sf2
 
 # Create a script to set up MIDI channels after FluidSynth starts
-set synth.midi-bank-select mma
+#set synth.midi-bank-select mma
 set synth.verbose True
 
 EOF
@@ -73,16 +74,20 @@ sleep 2
 (
 # First connect and wait for prompt
 echo ""
-sleep 1
+sleep 2
 # Disable channels 0-3 using Control Change commands
 # CC 120 = All Sound Off
 # CC 123 = All Notes Off
 # CC 7 = Volume (set to 0)
 for chan in 0 1 2 3; do
     sleep 1
-    echo "cc $chan 120 0"  # All Sound Off
-    echo "cc $chan 123 0"  # All Notes Off
-    echo "cc $chan 7 0"    # Volume = 0
+    echo "cc \$chan 120 0"  # All Sound Off
+    echo "cc \$chan 123 0"  # All Notes Off
+    echo "cc \$chan 7 0"    # Volume = 0
+done
+for chan in 4 5 6 7 8 9 10 11 12 13 14 15; do
+    sleep 1
+    echo "cc \$chan 7 127"    # Volume = 0
 done
 # Now set up the other channels
 echo "select 4 0 0 22"  # FM Bells 1
@@ -156,7 +161,7 @@ echo "[3/10] Tuning kernel and CPU isolation..."
 BOOT_FILE="/boot/uEnv.txt"
 ISOL_FLAGS="isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3 threadirqs"
 RT_FLAGS="preempt=full nmi_watchdog=0 nosoftlockup"
-AUDIO_FLAGS="threadirqs irqaffinity=0"
+AUDIO_FLAGS="irqaffinity=0"
 
 # First remove any existing isolation flags to prevent duplication
 sed -i -E 's/(isolcpus|nohz_full|rcu_nocbs|threadirqs|mitigations|preempt|nmi_watchdog|nosoftlockup|irqaffinity)[^ ]* //g' "$BOOT_FILE"
@@ -322,5 +327,5 @@ echo "Done! Reboot required."
 echo "Verify with:"
 echo "  ps -eo pid,comm,psr | grep -E 'jackd|fluidsynth'"
 # realtime kernel install
-echo "armbian-update -k 6.6.77 -r utajum/amlogic-s9xxx-armbian"
+echo "armbian-update -k 6.12.13 -r utajum/amlogic-s9xxx-armbian"
 echo "taskset -c 1-3 cyclictest -t -m -p99 -D 1h --affinity=1-3"
